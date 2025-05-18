@@ -11,7 +11,6 @@ const rolesConfig = require('./config.json').roles;
 const defaultRoleId = require('./config.json').defaultRoleId;
 
 bot.on('debug', console.log);
-bot.on('rateLimited', (...args) => console.log(args));
 
 bot.on('ready', () => {
     console.log(`[Client] ${bot.user.tag} is working`);
