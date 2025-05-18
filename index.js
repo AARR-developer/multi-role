@@ -1,4 +1,3 @@
-
 const { Client, Intents } = require('discord.js');
 const dotenv = require('dotenv');
 dotenv.config();
