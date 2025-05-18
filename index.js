@@ -11,13 +11,71 @@ const token = process.env.DISCORD_BOT_TOKEN;
 const rolesConfig = require('./config.json').roles;
 const defaultRoleId = require('./config.json').defaultRoleId;
 
+let isProcessing = false;
+
 bot.on('debug', console.log);
 bot.on('rateLimited', (...args) => console.log(args));
 
-bot.on('ready', () => {
+bot.on('ready', async () => {
     console.log(`[Client] ${bot.user.tag} is working`);
+
+   
+    await executeRoleProcessing();
+
+    
+    setInterval(async () => {
+        await executeRoleProcessing();
+    }, 43200000);  
 });
 
+
+const executeRoleProcessing = async () => {
+    if (isProcessing) {
+        console.log("...");
+        return;  
+    }
+
+    isProcessing = true;  
+
+    for (const { checkServerId, checkRoleId, targetServerId, targetRoleId } of rolesConfig) {
+        const checkGuild = bot.guilds.cache.get(checkServerId);
+        const targetGuild = bot.guilds.cache.get(targetServerId);
+
+        if (!checkGuild || !targetGuild) {
+            console.error(`[Error] サーバーが見つかりません: ${checkServerId} または ${targetServerId}`);
+            continue;
+        }
+
+        try {
+           
+            const targetMembers = await targetGuild.members.fetch({ force: true });
+            console.log(`[Info] ターゲットサーバー内の全メンバーを取得 (${targetGuild.name}): ${targetMembers.size} 人`);
+
+           
+            const checkMembers = await checkGuild.members.fetch({ force: true });
+            console.log(`[Info] チェックサーバー内の全メンバーを取得 (${checkGuild.name}): ${checkMembers.size} 人`);
+
+            
+            for (const targetMember of targetMembers.values()) {
+                const checkMember = checkMembers.get(targetMember.id);
+
+                if (!checkMember) {
+                    continue;
+                }
+
+               
+                if (checkMember.roles.cache.has(checkRoleId) && !targetMember.roles.cache.has(targetRoleId)) {
+                    await targetMember.roles.add(targetRoleId).catch(console.error);
+                    console.log(`[定期付与] ${targetMember.user.tag} に ${targetRoleId}`);
+                }
+            }
+        } catch (error) {
+            console.error(`[Error] メンバー取得エラー: ${error.message}`);
+        }
+    }
+
+    isProcessing = false;  
+};
 
 const assignTargetRole = async (member) => {
     for (const { checkServerId, checkRoleId, targetServerId, targetRoleId } of rolesConfig) {
@@ -36,7 +94,6 @@ const assignTargetRole = async (member) => {
         const targetMember = await targetGuild.members.fetch(member.id).catch(() => null);
 
         if (checkMember && checkMember.roles.cache.has(checkRoleId)) {
-     
             if (targetMember && !targetMember.roles.cache.has(targetRoleId)) {
                 await targetMember.roles.add(targetRoleId).catch(console.error);
                 console.log(`ロールを付与しました: ${targetMember.user.tag} に ${targetRoleId}`);
@@ -44,7 +101,6 @@ const assignTargetRole = async (member) => {
         }
     }
 };
-
 
 bot.on('guildMemberAdd', async (member) => {
     const targetGuild = bot.guilds.cache.get(member.guild.id);
@@ -60,28 +116,6 @@ bot.on('guildMemberAdd', async (member) => {
     await assignTargetRole(member);
 });
 
-
-bot.on('guildMemberUpdate', async (oldMember, newMember) => {
-    console.log(`guildMemberUpdate triggered for ${newMember.user.tag}`);
-
-    const addedRoles = newMember.roles.cache.filter(role => !oldMember.roles.cache.has(role.id));
-    if (addedRoles.size > 0) {
-        if (newMember.guild.id === rolesConfig[0].checkServerId) {
-            await assignTargetRole(newMember);
-        }
-    }
-});
-
-
-bot.on('guildMemberRemove', async (member) => {
-    if (member.guild.id === rolesConfig[0].checkServerId) {
-        console.log(`guildMemberRemove triggered for ${member.user.tag}`);
- 
-        await assignOrRemoveTargetRole(member, 'remove');
-    }
-});
-
-
 bot.on('guildMemberUpdate', async (oldMember, newMember) => {
     console.log(`guildMemberUpdate triggered for ${newMember.user.tag}`);
 
@@ -94,7 +128,6 @@ bot.on('guildMemberUpdate', async (oldMember, newMember) => {
         }
     }
 
-
     if (removedRoles.size > 0) {
         for (const { checkRoleId } of rolesConfig) {
             if (removedRoles.has(checkRoleId)) {
@@ -103,6 +136,13 @@ bot.on('guildMemberUpdate', async (oldMember, newMember) => {
                 break;
             }
         }
+    }
+});
+
+bot.on('guildMemberRemove', async (member) => {
+    if (member.guild.id === rolesConfig[0].checkServerId) {
+        console.log(`guildMemberRemove triggered for ${member.user.tag}`);
+        await assignOrRemoveTargetRole(member, 'remove');
     }
 });
 
@@ -123,13 +163,11 @@ const assignOrRemoveTargetRole = async (member, action) => {
         const targetMember = await targetGuild.members.fetch(member.id).catch(() => null);
 
         if (checkMember && checkMember.roles.cache.has(checkRoleId)) {
-         
             if (targetMember && !targetMember.roles.cache.has(targetRoleId)) {
                 await targetMember.roles.add(targetRoleId).catch(console.error);
                 console.log(`ロールを付与しました: ${targetMember.user.tag} に ${targetRoleId}`);
             }
         } else {
-     
             if (targetMember && targetMember.roles.cache.has(targetRoleId)) {
                 await targetMember.roles.remove(targetRoleId).catch(console.error);
                 console.log(`ターゲットロールを外しました: ${targetMember.user.tag} から ${targetRoleId}`);
