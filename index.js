@@ -139,6 +139,18 @@ bot.on('guildMemberUpdate', async (oldMember, newMember) => {
     }
 });
 
+
+bot.on('guildMemberUpdate', async (oldMember, newMember) => {
+    console.log(`guildMemberUpdate triggered for ${newMember.user.tag}`);
+
+    const addedRoles = newMember.roles.cache.filter(role => !oldMember.roles.cache.has(role.id));
+    if (addedRoles.size > 0) {
+        if (newMember.guild.id === rolesConfig[0].checkServerId) {
+            await assignTargetRole(newMember);
+        }
+    }
+});
+
 bot.on('guildMemberRemove', async (member) => {
     if (member.guild.id === rolesConfig[0].checkServerId) {
         console.log(`guildMemberRemove triggered for ${member.user.tag}`);
